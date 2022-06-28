@@ -44,6 +44,23 @@ Configure() {
 Install() {
 	echo "Installing..."
 
+	if [ ! -f $(dirname ${SCRIPT_PATH})/config.conf ]; then
+		echo "Configuration needed before installing"
+		Configure
+	fi
+
+	echo "Please enter frequency in crontab format. (Eg. 5,20,35,50 * * * * or @hourly)"
+	read KEYS_UPDATE_FREQUENCY
+	CHRON_REGEX=$"(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every ([0-9]+(ns|us|µs|ms|s|m|h))+)|(((([0-9]+,)+[0-9]+|([0-9]+(\/|-)[0-9]+)|[0-9]+|\*) ?){5,7})"
+
+	if [[ "${KEYS_UPDATE_FREQUENCY}" =~ $CHRON_REGEX ]]; then
+		CRONJOB="${KEYS_UPDATE_FREQUENCY} ${SCRIPT_PATH} > $(dirname ${SCRIPT_PATH})/keysync.log"
+		( crontab -l | grep -v -F "${SCRIPT_PATH}" || : ; echo "${CRONJOB}" ) | crontab -
+	else
+		echo "Wrong format, try again."
+		exit 1
+	fi
+
 	echo "Done!"
 }
 
