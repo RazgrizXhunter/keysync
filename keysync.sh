@@ -1,3 +1,11 @@
+#!/bin/sh
+
+RUNNING_USER=$SUDO_USER
+USER=$(whoami)
+SCRIPT_PATH=$(realpath "$0")
+
+START_MARKER="# Keysync Start - NO MODIFICAR - Desde este punto los registros serán administrados automáticamente por keysync"
+
 Help() {
 	echo -e "Tool for syncronizing SSH keys from S3 bucket."
 	echo -e ""
@@ -16,6 +24,19 @@ Help() {
 
 Configure() {
 	echo "Configure..."
+
+	if ! command -v aws; then
+		echo "AWSCLI not installed, please install it and try again."
+		exit 1
+	fi
+
+	echo "Please enter bucket name:"
+	read BUCKET_NAME
+	BUCKET_URI="s3://$BUCKET_NAME/"
+	AWS_PATH="$(which aws)"
+
+	echo -e "BUCKET_URI=$BUCKET_URI\nAWS_PATH=$AWS_PATH" > config.conf
+	$AWS_PATH configure
 
 	echo "Done!"
 }
