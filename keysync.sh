@@ -74,6 +74,55 @@ Uninstall() {
 Sync() {
 	echo "Sync started"
 
+	if ! test -f $(dirname $SCRIPT_PATH)/config.conf; then
+		echo "Configuration missing!"
+		exit 1
+	fi
+
+	while IFS="=" read -a LINE; do
+		case "${LINE[0]}" in
+			BUCKET_URI)
+				BUCKET_URI="${LINE[1]}"
+				;;
+			AWS_PATH)
+				AWS_PATH="${LINE[1]}"
+				;;
+		esac
+	done <<< "$(cat $(dirname ${SCRIPT_PATH})/config.conf)"
+
+	if ! command -v $AWS_PATH &> /dev/null; then
+		echo "AWSCLI not installed, please install it and try again."
+		exit 1
+	fi
+
+	KEYS_FILE=/home/$USER/.ssh/authorized_keys
+	TEMP_KEYS_FILE=$(mktemp /tmp/authorized_keys.XXXXXX)
+	PUB_KEYS_DIR=/home/$USER/.ssh/pub_key_files
+
+	# Add marker, if not present, and copy static content.
+	grep -Fxq "$START_MARKER" $KEYS_FILE || echo -e "\n$START_MARKER" >> $KEYS_FILE
+	LINE=$(grep -n "$START_MARKER" $KEYS_FILE | cut -d ":" -f 1)
+	head -n $LINE $KEYS_FILE > $TEMP_KEYS_FILE
+
+	# Synchronize the keys from the bucket.
+	mkdir -p $PUB_KEYS_DIR
+	if ! $AWS_PATH s3 sync --delete $BUCKET_URI $PUB_KEYS_DIR; then
+		echo "There was an error with AWS CLI."
+		exit 1
+	fi
+
+	for FILENAME in $PUB_KEYS_DIR/*; do
+		sed 's/\n\?$/\n/' < $FILENAME >> $TEMP_KEYS_FILE
+	done
+
+	# Move the new authorized keys in place.
+	chown $USER:$USER $KEYS_FILE
+	chmod 600 $KEYS_FILE
+	mv $TEMP_KEYS_FILE $KEYS_FILE
+	if [[ $(command -v "selinuxenabled") ]]; then
+		restorecon -R -v $KEYS_FILE
+	fi
+
 	echo "Sync done"
 }
 
