@@ -66,7 +66,7 @@ Install() {
 
 	echo "Please enter frequency in crontab format. (Eg. 5,20,35,50 * * * * or @hourly)"
 	read KEYS_UPDATE_FREQUENCY
-	CHRON_REGEX=$"(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every ([0-9]+(ns|us|µs|ms|s|m|h))+)|(((([0-9]+,)+[0-9]+|([0-9]+(\/|-)[0-9]+)|[0-9]+|\*) ?){5,7})"
+	CHRON_REGEX=$"(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|^((([0-9]|1[0-9]|2[0-3])|(\*(\/([0-9]|1[0-9]|2[0-3]))?)) (([0-9]|[1-5][0-9])|(\*(\/([0-9]|[1-5][0-9]))?)) (([1-9]|[12][0-9]|3[01])|(\*(\/([1-9]|[12][0-9]|3[01]))?)) (([1-9]|1[0-2])|(\*(\/([1-9]|1[0-2]))?)) (([0-6])|(\*(\/([0-6]))?)))$"
 
 	if [[ "${KEYS_UPDATE_FREQUENCY}" =~ $CHRON_REGEX ]]; then
 		CRONJOB="${KEYS_UPDATE_FREQUENCY} ${SCRIPT_PATH} > $(dirname ${SCRIPT_PATH})/keysync.log"
