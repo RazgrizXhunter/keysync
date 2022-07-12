@@ -30,12 +30,27 @@ Configure() {
 		exit 1
 	fi
 
-	echo "Please enter bucket name:"
-	read BUCKET_NAME
-	BUCKET_URI="s3://$BUCKET_NAME/"
-	AWS_PATH="$(which aws)"
+	OUTPUT=""
 
-	echo -e "BUCKET_URI=$BUCKET_URI\nAWS_PATH=$AWS_PATH" > config.conf
+	echo "Please enter bucket name:"
+	read SUP_BUCKET_NAME
+	SUP_BUCKET_URI="s3://$SUP_BUCKET_NAME/"
+	OUTPUT="${OUTPUT}SUP_BUCKET_URI=$SUP_BUCKET_URI"
+
+	echo "Do you want to grant access to the developers? [y/N]"
+	read IS_DEV
+
+	if [[ $IS_DEV == "y" ]]; then
+		echo "Please enter bucket name:"
+		read DEV_BUCKET_NAME
+		DEV_BUCKET_URI="s3://$DEV_BUCKET_NAME/"
+		OUTPUT="${OUTPUT}\nDEV_BUCKET_URI=$DEV_BUCKET_URI"
+	fi
+
+	AWS_PATH="$(which aws)"
+	OUTPUT="${OUTPUT}\nAWS_PATH=$AWS_PATH"
+
+	echo -e "$OUTPUT" > config.conf
 	$AWS_PATH configure
 
 	echo "Done!"
@@ -81,8 +96,11 @@ Sync() {
 
 	while IFS="=" read -a LINE; do
 		case "${LINE[0]}" in
-			BUCKET_URI)
-				BUCKET_URI="${LINE[1]}"
+			SUP_BUCKET_URI)
+				SUP_BUCKET_URI="${LINE[1]}"
+				;;
+			DEV_BUCKET_URI)
+				DEV_BUCKET_URI="${LINE[1]}"
 				;;
 			AWS_PATH)
 				AWS_PATH="${LINE[1]}"
@@ -97,7 +115,8 @@ Sync() {
 
 	KEYS_FILE=/home/$USER/.ssh/authorized_keys
 	TEMP_KEYS_FILE=$(mktemp /tmp/authorized_keys.XXXXXX)
-	PUB_KEYS_DIR=/home/$USER/.ssh/pub_key_files
+	SUP_PUB_KEYS_DIR=/home/$USER/.ssh/sup_pub_key_files
+	DEV_PUB_KEYS_DIR=/home/$USER/.ssh/dev_pub_key_files
 
 	# Add marker, if not present, and copy static content.
 	grep -Fxq "$START_MARKER" $KEYS_FILE || echo -e "\n$START_MARKER" >> $KEYS_FILE
@@ -105,13 +124,28 @@ Sync() {
 	head -n $LINE $KEYS_FILE > $TEMP_KEYS_FILE
 
 	# Synchronize the keys from the bucket.
-	mkdir -p $PUB_KEYS_DIR
-	if ! $AWS_PATH s3 sync --delete $BUCKET_URI $PUB_KEYS_DIR; then
+	mkdir -p $SUP_PUB_KEYS_DIR
+	mkdir -p $DEV_PUB_KEYS_DIR
+
+	if ! $AWS_PATH s3 sync --delete $SUP_BUCKET_URI $SUP_PUB_KEYS_DIR; then
 		echo "There was an error with AWS CLI."
 		exit 1
 	fi
 
-	for FILENAME in $PUB_KEYS_DIR/*; do
+	if [ ! -z ${DEV_BUCKET_URI+x}  ]; then # TODO: delete dev keys if not present and there are some
+		if ! $AWS_PATH s3 sync --delete $DEV_BUCKET_URI $DEV_PUB_KEYS_DIR; then
+			echo "There was an error with AWS CLI."
+			exit 1
+		fi
+
+		for FILENAME in $DEV_PUB_KEYS_DIR/*; do
+			sed 's/\n\?$/\n/' < $FILENAME >> $TEMP_KEYS_FILE
+		done
+	else
+		rm -rf $DEV_PUB_KEYS_DIR/*.pub
+	fi 
+
+	for FILENAME in $SUP_PUB_KEYS_DIR/*; do
 		sed 's/\n\?$/\n/' < $FILENAME >> $TEMP_KEYS_FILE
 	done
 
